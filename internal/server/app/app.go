@@ -17,6 +17,7 @@ import (
 	"github.com/g123udini/gophkeeper/internal/server/jwt"
 	"github.com/g123udini/gophkeeper/internal/server/repository"
 	"github.com/g123udini/gophkeeper/internal/server/service"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 

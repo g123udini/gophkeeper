@@ -4,230 +4,137 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+func TestLoad_Defaults(t *testing.T) {
+	t.Setenv("APP_ENV", "")
+	t.Setenv("DATABASE_DSN", "")
+	t.Setenv("APP_SECRET", "secret")
+	t.Setenv("LISTEN", "")
+	t.Setenv("READ_TIMEOUT", "")
+	t.Setenv("WRITE_TIMEOUT", "")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, "dev", cfg.Env)
+	assert.Equal(t, defaultDSN, cfg.DatabaseDSN)
+	assert.Equal(t, "secret", cfg.AppSecret)
+	assert.Equal(t, defaultListen, cfg.Listen)
+	assert.Equal(t, defaultReadTimeout, cfg.ReadTimeout)
+	assert.Equal(t, defaultWriteTimeout, cfg.WriteTimeout)
+}
+
+func TestLoad_FromEnv(t *testing.T) {
+	t.Setenv("APP_ENV", "prod")
+	t.Setenv("DATABASE_DSN", "user:pass@tcp(localhost:3306)/app")
+	t.Setenv("APP_SECRET", "super-secret")
+	t.Setenv("LISTEN", ":9090")
+	t.Setenv("READ_TIMEOUT", "15s")
+	t.Setenv("WRITE_TIMEOUT", "20s")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, "prod", cfg.Env)
+	assert.Equal(t, "user:pass@tcp(localhost:3306)/app", cfg.DatabaseDSN)
+	assert.Equal(t, "super-secret", cfg.AppSecret)
+	assert.Equal(t, ":9090", cfg.Listen)
+	assert.Equal(t, 15*time.Second, cfg.ReadTimeout)
+	assert.Equal(t, 20*time.Second, cfg.WriteTimeout)
+}
+
+func TestLoad_ErrorWhenAppSecretMissing(t *testing.T) {
+	t.Setenv("APP_ENV", "")
+	t.Setenv("DATABASE_DSN", "")
+	t.Setenv("APP_SECRET", "")
+	t.Setenv("LISTEN", "")
+	t.Setenv("READ_TIMEOUT", "")
+	t.Setenv("WRITE_TIMEOUT", "")
+
+	cfg, err := Load()
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Equal(t, "APP_SECRET is required", err.Error())
+}
+
+func TestParseDuration_DefaultOnInvalidValue(t *testing.T) {
+	t.Setenv("READ_TIMEOUT", "bad-duration")
+
+	got := parseDuration("READ_TIMEOUT", 7*time.Second)
+
+	assert.Equal(t, 7*time.Second, got)
+}
+
+func TestParseDuration_DefaultOnEmptyValue(t *testing.T) {
+	t.Setenv("READ_TIMEOUT", "")
+
+	got := parseDuration("READ_TIMEOUT", 9*time.Second)
+
+	assert.Equal(t, 9*time.Second, got)
+}
+
+func TestParseDuration_ParsesValidValue(t *testing.T) {
+	t.Setenv("READ_TIMEOUT", "12s")
+
+	got := parseDuration("READ_TIMEOUT", 9*time.Second)
+
+	assert.Equal(t, 12*time.Second, got)
+}
+
 func TestGetEnv(t *testing.T) {
-	tests := []struct {
-		name         string
-		key          string
-		defaultValue string
-		envValue     string
-		expected     string
-	}{
-		{
-			name:         "returns default when env not set",
-			key:          "TEST_GET_ENV_NOT_SET",
-			defaultValue: "default_value",
-			envValue:     "",
-			expected:     "default_value",
-		},
-		{
-			name:         "returns env value when set",
-			key:          "TEST_GET_ENV_SET",
-			defaultValue: "default_value",
-			envValue:     "env_value",
-			expected:     "env_value",
-		},
-	}
+	t.Run("returns env value", func(t *testing.T) {
+		t.Setenv("TEST_KEY", "value")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.envValue != "" {
-				os.Setenv(tt.key, tt.envValue)
-				defer os.Unsetenv(tt.key)
-			} else {
-				os.Unsetenv(tt.key)
-			}
+		got := getEnv("TEST_KEY", "default")
 
-			result := getEnv(tt.key, tt.defaultValue)
-			if result != tt.expected {
-				t.Errorf("getEnv(%s, %s) = %s, expected %s", tt.key, tt.defaultValue, result, tt.expected)
-			}
-		})
-	}
+		assert.Equal(t, "value", got)
+	})
+
+	t.Run("returns default when empty", func(t *testing.T) {
+		t.Setenv("TEST_KEY", "")
+
+		got := getEnv("TEST_KEY", "default")
+
+		assert.Equal(t, "default", got)
+	})
 }
 
 func TestGetBoolEnv(t *testing.T) {
 	tests := []struct {
-		name     string
-		key      string
-		envValue string
-		expected bool
+		name  string
+		value string
+		want  bool
 	}{
-		{
-			name:     "returns false when env not set",
-			key:      "TEST_GET_BOOL_ENV_NOT_SET",
-			envValue: "",
-			expected: false,
-		},
-		{
-			name:     "returns true when env is 'true'",
-			key:      "TEST_GET_BOOL_ENV_TRUE",
-			envValue: "true",
-			expected: true,
-		},
-		{
-			name:     "returns true when env is '1'",
-			key:      "TEST_GET_BOOL_ENV_ONE",
-			envValue: "1",
-			expected: true,
-		},
-		{
-			name:     "returns false when env is not 'true' or '1'",
-			key:      "TEST_GET_BOOL_ENV_OTHER",
-			envValue: "yes",
-			expected: false,
-		},
+		{"true string", "true", true},
+		{"one string", "1", true},
+		{"false string", "false", false},
+		{"zero string", "0", false},
+		{"empty", "", false},
+		{"random", "abc", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.envValue != "" {
-				os.Setenv(tt.key, tt.envValue)
-				defer os.Unsetenv(tt.key)
-			} else {
-				os.Unsetenv(tt.key)
-			}
+			t.Setenv("BOOL_KEY", tt.value)
 
-			result := getBoolEnv(tt.key)
-			if result != tt.expected {
-				t.Errorf("getBoolEnv(%s) = %v, expected %v", tt.key, result, tt.expected)
-			}
+			got := getBoolEnv("BOOL_KEY")
+
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestParseDuration(t *testing.T) {
-	tests := []struct {
-		name         string
-		key          string
-		defaultValue time.Duration
-		envValue     string
-		expected     time.Duration
-	}{
-		{
-			name:         "returns default when env not set",
-			key:          "TEST_PARSE_DURATION_NOT_SET",
-			defaultValue: 5 * time.Second,
-			envValue:     "",
-			expected:     5 * time.Second,
-		},
-		{
-			name:         "returns parsed duration when env is valid",
-			key:          "TEST_PARSE_DURATION_VALID",
-			defaultValue: 5 * time.Second,
-			envValue:     "10s",
-			expected:     10 * time.Second,
-		},
-		{
-			name:         "returns default when env is invalid",
-			key:          "TEST_PARSE_DURATION_INVALID",
-			defaultValue: 5 * time.Second,
-			envValue:     "invalid",
-			expected:     5 * time.Second,
-		},
-	}
+// На случай старой версии Go без t.Setenv в вашем окружении тестов
+func TestLoad_UsesRealEnvAPI(t *testing.T) {
+	old := os.Getenv("APP_SECRET")
+	defer func() { _ = os.Setenv("APP_SECRET", old) }()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.envValue != "" {
-				os.Setenv(tt.key, tt.envValue)
-				defer os.Unsetenv(tt.key)
-			} else {
-				os.Unsetenv(tt.key)
-			}
-
-			result := parseDuration(tt.key, tt.defaultValue)
-			if result != tt.expected {
-				t.Errorf("parseDuration(%s, %v) = %v, expected %v", tt.key, tt.defaultValue, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestLoad(t *testing.T) {
-	tests := []struct {
-		name          string
-		envs          map[string]string
-		expectedError bool
-		checkConfig   func(*Config) bool
-	}{
-		{
-			name: "returns error when DATABASE_DSN is not set",
-			envs: map[string]string{
-				"APP_SECRET": "secret",
-			},
-			expectedError: true,
-		},
-		{
-			name: "returns error when APP_SECRET is not set",
-			envs: map[string]string{
-				"DATABASE_DSN": "postgres://user:pass@localhost:5432/db",
-			},
-			expectedError: true,
-		},
-		{
-			name: "returns config with defaults when required fields are set",
-			envs: map[string]string{
-				"DATABASE_DSN": "postgres://user:pass@localhost:5432/db",
-				"APP_SECRET":   "secret",
-			},
-			expectedError: false,
-			checkConfig: func(cfg *Config) bool {
-				return cfg.Env == "dev" &&
-					cfg.DatabaseDSN == "postgres://user:pass@localhost:5432/db" &&
-					cfg.AppSecret == "secret" &&
-					cfg.Listen == defaultListen &&
-					cfg.ReadTimeout == defaultReadTimeout &&
-					cfg.WriteTimeout == defaultWriteTimeout
-			},
-		},
-		{
-			name: "returns config with custom values when all fields are set",
-			envs: map[string]string{
-				"APP_ENV":       "prod",
-				"DATABASE_DSN":  "postgres://user:pass@localhost:5432/prod_db",
-				"APP_SECRET":    "prod_secret",
-				"LISTEN":        ":8080",
-				"READ_TIMEOUT":  "15s",
-				"WRITE_TIMEOUT": "30s",
-			},
-			expectedError: false,
-			checkConfig: func(cfg *Config) bool {
-				return cfg.Env == "prod" &&
-					cfg.DatabaseDSN == "postgres://user:pass@localhost:5432/prod_db" &&
-					cfg.AppSecret == "prod_secret" &&
-					cfg.Listen == ":8080" &&
-					cfg.ReadTimeout == 15*time.Second &&
-					cfg.WriteTimeout == 30*time.Second
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clear environment before each test
-			os.Clearenv()
-
-			// Set environment variables for this test
-			for k, v := range tt.envs {
-				os.Setenv(k, v)
-			}
-
-			cfg, err := Load()
-			if tt.expectedError && err == nil {
-				t.Error("Load() did not return expected error")
-			}
-
-			if !tt.expectedError && err != nil {
-				t.Errorf("Load() returned unexpected error: %v", err)
-			}
-
-			if !tt.expectedError && err == nil {
-				if tt.checkConfig != nil && !tt.checkConfig(cfg) {
-					t.Error("Load() returned config with unexpected values")
-				}
-			}
-		})
-	}
+	_ = os.Setenv("APP_SECRET", "secret")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "secret", cfg.AppSecret)
 }

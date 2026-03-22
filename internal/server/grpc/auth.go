@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"github.com/g123udini/gophkeeper/internal/common/proto"
 	"strings"
 
 	"github.com/g123udini/gophkeeper/internal/server/jwt"
@@ -29,7 +30,7 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (interface{}, error) {
-		if info.FullMethod == "/gophkeeper.v1.AuthService/Register" || info.FullMethod == "/gophkeeper.v1.AuthService/Login" {
+		if info.FullMethod == proto.AuthService_Register_FullMethodName || info.FullMethod == proto.AuthService_Login_FullMethodName {
 			return handler(ctx, req)
 		}
 

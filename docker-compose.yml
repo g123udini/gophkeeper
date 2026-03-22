@@ -22,13 +22,15 @@ services:
     build:
       context: .
       dockerfile: .docker/server/Dockerfile
+    depends_on:
+      mariadb:
+        condition: service_healthy
     restart: unless-stopped
     environment:
       DATABASE_DSN: mariadb:mariadb@tcp(mariadb:3306)/mariadb
       APP_SECRET: s3cr3t
       LISTEN: ":50051"
-    expose:
-      - "50051"
-
+    ports:
+      - "50051:50051"
 volumes:
   mariadb:
