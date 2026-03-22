@@ -17,8 +17,8 @@ import (
 	"github.com/g123udini/gophkeeper/internal/client/command"
 	"github.com/g123udini/gophkeeper/internal/client/config"
 	"github.com/g123udini/gophkeeper/internal/client/grpc"
-	"github.com/g123udini/gophkeeper/internal/client/manager"
 	"github.com/g123udini/gophkeeper/internal/client/repository"
+	"github.com/g123udini/gophkeeper/internal/client/service"
 	"github.com/g123udini/gophkeeper/internal/client/synchronizer"
 	"github.com/g123udini/gophkeeper/internal/common/logger"
 	_ "github.com/mattn/go-sqlite3"
@@ -58,8 +58,8 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("can`t create meta repo: %w", err)
 	}
 
-	userDataManager := manager.NewUserDataManager(userDataRepo)
-	metaManager := manager.NewMetaManager(metaRepo)
+	userDataManager := service.NewUserDataManager(userDataRepo)
+	metaManager := service.NewMetaManager(metaRepo)
 	masterPassword := []byte(conf.MasterPassword)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -1,4 +1,4 @@
-package manager
+package service
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func TestNewMetaManager(t *testing.T) {
 
 func TestGetLastSync(t *testing.T) {
 	mockRepo := new(MockMetaRepository)
-	manager := &MetaManager{repo: mockRepo}
+	manager := &MetaService{repo: mockRepo}
 
 	ctx := context.Background()
 	expectedTime := time.Now().UTC()
@@ -84,7 +84,7 @@ func TestGetLastSync(t *testing.T) {
 
 func TestSetLastSync(t *testing.T) {
 	mockRepo := new(MockMetaRepository)
-	manager := &MetaManager{repo: mockRepo}
+	manager := &MetaService{repo: mockRepo}
 
 	ctx := context.Background()
 	syncTime := time.Now().UTC()
@@ -112,7 +112,7 @@ func TestSetLastSync(t *testing.T) {
 
 func TestGetToken(t *testing.T) {
 	mockRepo := new(MockMetaRepository)
-	manager := &MetaManager{repo: mockRepo}
+	manager := &MetaService{repo: mockRepo}
 
 	ctx := context.Background()
 	testError := errors.New("test error")
@@ -140,7 +140,7 @@ func TestGetToken(t *testing.T) {
 
 func TestSetToken(t *testing.T) {
 	mockRepo := new(MockMetaRepository)
-	manager := &MetaManager{repo: mockRepo}
+	manager := &MetaService{repo: mockRepo}
 
 	ctx := context.Background()
 	testError := errors.New("test error")
@@ -167,7 +167,7 @@ func TestSetToken(t *testing.T) {
 
 func TestHasToken(t *testing.T) {
 	mockRepo := new(MockMetaRepository)
-	manager := &MetaManager{repo: mockRepo}
+	manager := &MetaService{repo: mockRepo}
 
 	ctx := context.Background()
 	testError := errors.New("test error")
@@ -206,7 +206,7 @@ func TestHasToken(t *testing.T) {
 
 func TestMasterPasswordHashDefined(t *testing.T) {
 	mockRepo := new(MockMetaRepository)
-	manager := &MetaManager{repo: mockRepo}
+	manager := &MetaService{repo: mockRepo}
 
 	ctx := context.Background()
 	testError := errors.New("test error")
@@ -244,7 +244,7 @@ func TestMasterPasswordHashDefined(t *testing.T) {
 
 func TestValidateMasterPassword(t *testing.T) {
 	mockRepo := new(MockMetaRepository)
-	manager := &MetaManager{repo: mockRepo}
+	manager := &MetaService{repo: mockRepo}
 
 	ctx := context.Background()
 	password := "secret"
@@ -283,7 +283,7 @@ func TestValidateMasterPassword(t *testing.T) {
 
 func TestSetMasterPassword(t *testing.T) {
 	mockRepo := new(MockMetaRepository)
-	manager := &MetaManager{repo: mockRepo}
+	manager := &MetaService{repo: mockRepo}
 
 	ctx := context.Background()
 	password := "secret"

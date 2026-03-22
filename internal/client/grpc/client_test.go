@@ -50,12 +50,11 @@ func TestNewClient(t *testing.T) {
 	defer s.Stop()
 
 	go func() {
-		if err := s.Serve(lis); err != nil {
-			t.Errorf("Failed to serve: %v", err)
-		}
+		_ = s.Serve(lis)
 	}()
 
-	conn, err := grpc.NewClient("bufnet",
+	conn, err := grpc.NewClient(
+		"bufnet",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return lis.Dial()
 		}),
@@ -69,6 +68,7 @@ func TestNewClient(t *testing.T) {
 		AuthClient: proto.NewAuthServiceClient(conn),
 		DataClient: proto.NewDataServiceClient(conn),
 	}
+
 	assert.NotNil(t, client)
 	assert.NotNil(t, client.AuthClient)
 	assert.NotNil(t, client.DataClient)

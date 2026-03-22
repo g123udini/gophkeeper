@@ -23,4 +23,26 @@ jobs:
           prefix: server
           targets: windows/amd64, linux/amd64, linux/arm64, darwin/arm64
           v: true
-          pkg: cmd/server
+          pkg: client/server
+
+      - name: Build client
+        uses: crazy-max/ghaction-xgo@v3
+        with:
+          go_version: 1.25
+          prefix: client
+          targets: windows/amd64, linux/amd64, linux/arm64, darwin/arm64
+          v: true
+          pkg: client/client
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/client-linux-amd64
+            build/client-linux-arm64
+            build/client-windows-amd64.exe
+            build/client-darwin-arm64
+            build/server-linux-amd64
+            build/server-linux-arm64
+            build/server-windows-amd64.exe
+            build/server-darwin-arm64

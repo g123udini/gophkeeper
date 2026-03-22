@@ -1,4 +1,4 @@
-package manager
+package service
 
 import (
 	"context"
@@ -19,21 +19,21 @@ type UserDataRepository interface {
 	GetUpdates(ctx context.Context, lastSync time.Time) ([]*model.UserData, error)
 }
 
-type UserDataManager struct {
+type UserDataService struct {
 	dataRepo UserDataRepository
 }
 
-func NewUserDataManager(repo *repository.UserDataRepository) *UserDataManager {
-	return &UserDataManager{
+func NewUserDataManager(repo *repository.UserDataRepository) *UserDataService {
+	return &UserDataService{
 		dataRepo: repo,
 	}
 }
 
-func (m *UserDataManager) Upsert(ctx context.Context, data *model.UserData) error {
+func (m *UserDataService) Upsert(ctx context.Context, data *model.UserData) error {
 	return m.dataRepo.Upsert(ctx, data)
 }
 
-func (m *UserDataManager) Get(ctx context.Context, key string) (*model.UserData, error) {
+func (m *UserDataService) Get(ctx context.Context, key string) (*model.UserData, error) {
 	data, err := m.dataRepo.Get(ctx, key)
 	if err != nil {
 		return nil, err
@@ -44,6 +44,6 @@ func (m *UserDataManager) Get(ctx context.Context, key string) (*model.UserData,
 	return data, nil
 }
 
-func (m *UserDataManager) GetUpdates(ctx context.Context, lastSync time.Time) ([]*model.UserData, error) {
+func (m *UserDataService) GetUpdates(ctx context.Context, lastSync time.Time) ([]*model.UserData, error) {
 	return m.dataRepo.GetUpdates(ctx, lastSync)
 }

@@ -1,4 +1,4 @@
-package manager
+package service
 
 import (
 	"context"
@@ -18,31 +18,31 @@ type MetaRepository interface {
 	SetToken(ctx context.Context, token string) error
 }
 
-type MetaManager struct {
+type MetaService struct {
 	repo MetaRepository
 }
 
-func NewMetaManager(repo MetaRepository) *MetaManager {
-	return &MetaManager{repo: repo}
+func NewMetaManager(repo MetaRepository) *MetaService {
+	return &MetaService{repo: repo}
 }
 
-func (m *MetaManager) GetLastSync(ctx context.Context) (time.Time, error) {
+func (m *MetaService) GetLastSync(ctx context.Context) (time.Time, error) {
 	return m.repo.GetLastSync(ctx)
 }
 
-func (m *MetaManager) SetLastSync(ctx context.Context, t time.Time) error {
+func (m *MetaService) SetLastSync(ctx context.Context, t time.Time) error {
 	return m.repo.SetLastSync(ctx, t)
 }
 
-func (m *MetaManager) GetToken(ctx context.Context) (string, error) {
+func (m *MetaService) GetToken(ctx context.Context) (string, error) {
 	return m.repo.GetToken(ctx)
 }
 
-func (m *MetaManager) SetToken(ctx context.Context, token string) error {
+func (m *MetaService) SetToken(ctx context.Context, token string) error {
 	return m.repo.SetToken(ctx, token)
 }
 
-func (m *MetaManager) HasToken(ctx context.Context) (bool, error) {
+func (m *MetaService) HasToken(ctx context.Context) (bool, error) {
 	token, err := m.repo.GetToken(ctx)
 	if err != nil {
 		return false, err
@@ -51,7 +51,7 @@ func (m *MetaManager) HasToken(ctx context.Context) (bool, error) {
 	return token != "", nil
 }
 
-func (m *MetaManager) MasterPasswordHashDefined(ctx context.Context) (bool, error) {
+func (m *MetaService) MasterPasswordHashDefined(ctx context.Context) (bool, error) {
 	h, err := m.repo.GetMasterPasswordHash(ctx)
 	if err != nil {
 		return false, err
@@ -60,7 +60,7 @@ func (m *MetaManager) MasterPasswordHashDefined(ctx context.Context) (bool, erro
 	return h != "", nil
 }
 
-func (m *MetaManager) ValidateMasterPassword(ctx context.Context, password string) error {
+func (m *MetaService) ValidateMasterPassword(ctx context.Context, password string) error {
 	h, err := m.repo.GetMasterPasswordHash(ctx)
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func (m *MetaManager) ValidateMasterPassword(ctx context.Context, password strin
 	return bcrypt.CompareHashAndPassword([]byte(h), []byte(password))
 }
 
-func (m *MetaManager) SetMasterPassword(ctx context.Context, password string) error {
+func (m *MetaService) SetMasterPassword(ctx context.Context, password string) error {
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err

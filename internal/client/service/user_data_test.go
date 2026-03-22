@@ -1,4 +1,4 @@
-package manager
+package service
 
 import (
 	"context"
@@ -39,14 +39,14 @@ func (m *MockUserDataRepository) GetUpdates(ctx context.Context, lastSync time.T
 
 func TestNewUserDataManager(t *testing.T) {
 	mockRepo := new(MockUserDataRepository)
-	manager := &UserDataManager{dataRepo: mockRepo}
+	manager := &UserDataService{dataRepo: mockRepo}
 
 	assert.NotNil(t, manager)
 }
 
 func TestUpsert(t *testing.T) {
 	mockRepo := new(MockUserDataRepository)
-	manager := &UserDataManager{dataRepo: mockRepo}
+	manager := &UserDataService{dataRepo: mockRepo}
 
 	ctx := context.Background()
 	userData := &model.UserData{
@@ -79,7 +79,7 @@ func TestUpsert(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	mockRepo := new(MockUserDataRepository)
-	manager := &UserDataManager{dataRepo: mockRepo}
+	manager := &UserDataService{dataRepo: mockRepo}
 
 	ctx := context.Background()
 	key := "test-key"
@@ -126,7 +126,7 @@ func TestGet(t *testing.T) {
 
 func TestGetUpdates(t *testing.T) {
 	mockRepo := new(MockUserDataRepository)
-	manager := &UserDataManager{dataRepo: mockRepo}
+	manager := &UserDataService{dataRepo: mockRepo}
 
 	ctx := context.Background()
 	lastSync := time.Now().Add(-24 * time.Hour)
