@@ -1,0 +1,37 @@
+name: gophkeeper
+
+services:
+  mariadb:
+    image: mariadb:11.7
+    restart: unless-stopped
+    environment:
+      MARIADB_USER: mariadb
+      MARIADB_PASSWORD: mariadb
+      MARIADB_DATABASE: mariadb
+      MARIADB_RANDOM_ROOT_PASSWORD: 1
+    volumes:
+      - mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  server:
+    depends_on:
+      goose:
+        condition: service_completed_successfully
+    build:
+      context: .
+      dockerfile: .docker/server/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_DSN: mariadb:mariadb@tcp(mariadb:3306)/mariadb
+      APP_SECRET: s3cr3t
+      LISTEN: ":50051"
+    expose:
+      - "50051"
+
+volumes:
+  mariadb:
