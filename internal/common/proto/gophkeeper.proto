@@ -1,0 +1,52 @@
+syntax = "proto3";
+option go_package = "github.com/g123udini/gophkeeper/internal/common/proto";
+
+import "google/protobuf/timestamp.proto";
+
+service AuthService {
+  rpc Register(RegisterRequest) returns (TokenResponse);
+  rpc Login(LoginRequest) returns (TokenResponse);
+}
+
+service DataService {
+  rpc Upsert(UpsertRequest) returns (DataResponse);
+  rpc GetUpdates(GetUpdatesRequest) returns (DataListResponse);
+}
+
+message RegisterRequest {
+  string login = 1;
+  string password = 2;
+  string master_password = 3;
+}
+
+message LoginRequest {
+  string login = 1;
+  string password = 2;
+  string master_password = 3;
+}
+
+message TokenResponse {
+  string token = 1;
+}
+
+message UpsertRequest {
+  string data_key = 1;
+  bytes data_value = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  google.protobuf.Timestamp deleted_at = 4;
+}
+
+message GetUpdatesRequest {
+  google.protobuf.Timestamp updated_after = 1;
+}
+
+message DataResponse {
+  string data_key = 1;
+  bytes data_value = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  google.protobuf.Timestamp deleted_at = 4;
+}
+
+message DataListResponse {
+  repeated DataResponse items = 1;
+}

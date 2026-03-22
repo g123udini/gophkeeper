@@ -1,0 +1,26 @@
+name: gophkeeper-release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build server
+        uses: crazy-max/ghaction-xgo@v3
+        with:
+          go_version: 1.25
+          prefix: server
+          targets: windows/amd64, linux/amd64, linux/arm64, darwin/arm64
+          v: true
+          pkg: cmd/server
