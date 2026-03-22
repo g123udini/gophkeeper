@@ -9,6 +9,7 @@ RUN go mod download
 COPY ./cmd/server ./cmd/server
 COPY ./internal/server ./internal/server
 COPY ./internal/common ./internal/common
+COPY ./internal/server/migrations ./migrations
 
 RUN CGO_ENABLED=0 GOOS=linux go build -C ./cmd/server -o server
 

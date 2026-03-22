@@ -21,18 +21,16 @@ const (
 	defaultWriteTimeout = 10 * time.Second
 )
 
+const defaultDSN = "mariadb:mariadb@tcp(mariadb:3306)/mariadb"
+
 func Load() (*Config, error) {
 	cfg := &Config{
 		Env:          getEnv("APP_ENV", "dev"),
-		DatabaseDSN:  os.Getenv("DATABASE_DSN"),
+		DatabaseDSN:  getEnv("DATABASE_DSN", defaultDSN),
 		AppSecret:    os.Getenv("APP_SECRET"),
 		Listen:       getEnv("LISTEN", defaultListen),
 		ReadTimeout:  parseDuration("READ_TIMEOUT", defaultReadTimeout),
 		WriteTimeout: parseDuration("WRITE_TIMEOUT", defaultWriteTimeout),
-	}
-
-	if cfg.DatabaseDSN == "" {
-		return nil, fmt.Errorf("DATABASE_DSN is required")
 	}
 
 	if cfg.AppSecret == "" {
