@@ -13,6 +13,7 @@ type Config struct {
 	Listen       string        // LISTEN
 	ReadTimeout  time.Duration // READ_TIMEOUT
 	WriteTimeout time.Duration // WRITE_TIMEOUT
+	Debug        bool          // DEBUG
 }
 
 const (
@@ -46,10 +47,6 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
-}
-
-func getBoolEnv(key string) bool {
-	return os.Getenv(key) == "true" || os.Getenv(key) == "1"
 }
 
 func parseDuration(key string, defaultValue time.Duration) time.Duration {

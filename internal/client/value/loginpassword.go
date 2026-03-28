@@ -34,5 +34,13 @@ func (v *LoginPassword) Validate() error {
 }
 
 func (v *LoginPassword) String() string {
-	return fmt.Sprintf("Login: %s, Password: %s", v.Login, v.Password)
+	return fmt.Sprintf("Login: %s, Password: %s", v.Login, maskPassword(v.Password))
+}
+
+func maskPassword(p string) string {
+	if p == "" {
+		return ""
+	}
+
+	return "******"
 }

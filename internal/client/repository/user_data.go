@@ -66,14 +66,14 @@ func (r *UserDataRepository) Get(ctx context.Context, key string) (*model.UserDa
 }
 
 func (r *UserDataRepository) GetUpdates(ctx context.Context, after time.Time) ([]*model.UserData, error) {
-	rows, err := r.db.QueryContext(ctx, "SELECT id, data_key, data_value, updated_at, deleted_at FROM user_data WHERE updated_at > ?", after.Unix())
+	rows, err := r.db.QueryContext(ctx, `
+	SELECT id, data_key, data_value, updated_at, deleted_at 
+	FROM user_data 
+	WHERE updated_at > ?
+`, after.Unix())
 	if err != nil {
 		return nil, err
 	}
-	if rows.Err() != nil {
-		return nil, rows.Err()
-	}
-
 	defer rows.Close()
 	var result []*model.UserData
 	for rows.Next() {
@@ -86,6 +86,11 @@ func (r *UserDataRepository) GetUpdates(ctx context.Context, after time.Time) ([
 		ud.DeletedAt = time.Unix(deletedAt, 0)
 		result = append(result, &ud)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return result, nil
 }
 

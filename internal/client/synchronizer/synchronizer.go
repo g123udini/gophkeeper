@@ -2,16 +2,19 @@ package synchronizer
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/g123udini/gophkeeper/internal/client/model"
 	"github.com/g123udini/gophkeeper/internal/common/logger"
 	"github.com/g123udini/gophkeeper/internal/common/proto"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var ErrUnauthenticated = errors.New("unauthenticated")
 
 type GRPCClient interface {
 	Upsert(ctx context.Context, data *model.UserData) (*proto.DataResponse, error)
@@ -35,7 +38,7 @@ type Synchronizer struct {
 	metaManager MetaManager
 	interval    time.Duration
 	stopCh      chan struct{}
-	wg          sync.WaitGroup
+	onceStop    sync.Once
 }
 
 func New(
@@ -53,87 +56,101 @@ func New(
 	}
 }
 
-func (s *Synchronizer) Start(ctx context.Context) {
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+func (s *Synchronizer) Start(ctx context.Context) error {
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
 
-		ticker := time.NewTicker(s.interval)
-		defer ticker.Stop()
-
-		s.syncOnce(ctx)
-
-		for {
-			select {
-			case <-ticker.C:
-				s.syncOnce(ctx)
-			case <-s.stopCh:
-				return
-			case <-ctx.Done():
-				return
-			}
+	if err := s.syncOnce(ctx); err != nil {
+		if errors.Is(err, ErrUnauthenticated) {
+			logger.Logger.Warn("sync skipped: unauthenticated")
+		} else {
+			return err
 		}
-	}()
-	s.wg.Wait()
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := s.syncOnce(ctx); err != nil {
+				if errors.Is(err, ErrUnauthenticated) {
+					logger.Logger.Warn("sync skipped: unauthenticated")
+					continue
+				}
+
+				return err
+			}
+		case <-s.stopCh:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 func (s *Synchronizer) Stop() {
-	close(s.stopCh)
-	s.wg.Wait()
+	s.onceStop.Do(func() {
+		close(s.stopCh)
+	})
 }
 
-func (s *Synchronizer) syncOnce(ctx context.Context) {
+func (s *Synchronizer) syncOnce(ctx context.Context) error {
 	hasToken, err := s.metaManager.HasToken(ctx)
 	if err != nil {
-		logger.Logger.Fatal("sync: get token state error", zap.Error(err))
+		return fmt.Errorf("sync: get token state: %w", err)
 	}
 
 	if !hasToken {
-		return
+		return nil
 	}
 
 	lastSync, err := s.metaManager.GetLastSync(ctx)
 	if err != nil {
-		logger.Logger.Fatal("sync: get lastSync error", zap.Error(err))
+		return fmt.Errorf("sync: get last sync: %w", err)
 	}
 
-	if s.pushLocalUpdates(ctx, lastSync) && s.fetchRemoteUpdates(ctx, lastSync) {
-		if err := s.metaManager.SetLastSync(ctx, time.Now().UTC()); err != nil {
-			logger.Logger.Fatal("sync: set lastSync error", zap.Error(err))
-		}
+	if err := s.pushLocalUpdates(ctx, lastSync); err != nil {
+		return err
 	}
+
+	if err := s.fetchRemoteUpdates(ctx, lastSync); err != nil {
+		return err
+	}
+
+	if err := s.metaManager.SetLastSync(ctx, time.Now().UTC()); err != nil {
+		return fmt.Errorf("sync: set last sync: %w", err)
+	}
+
+	return nil
 }
 
-func (s *Synchronizer) pushLocalUpdates(ctx context.Context, lastSync time.Time) bool {
+func (s *Synchronizer) pushLocalUpdates(ctx context.Context, lastSync time.Time) error {
 	localUpdates, err := s.userDataMgr.GetUpdates(ctx, lastSync)
 	if err != nil {
-		logger.Logger.Fatal("sync: can't get local updates", zap.Error(err))
+		return fmt.Errorf("sync: get local updates: %w", err)
 	}
 
 	for _, data := range localUpdates {
 		_, err := s.client.Upsert(ctx, data)
 		if err != nil {
 			if status.Code(err) == codes.Unauthenticated {
-				return false
+				return ErrUnauthenticated
 			}
 
-			logger.Logger.Warn("sync: can't push local update to server", zap.Error(err))
-			return false
+			return fmt.Errorf("sync: push local update: %w", err)
 		}
 	}
 
-	return true
+	return nil
 }
 
-func (s *Synchronizer) fetchRemoteUpdates(ctx context.Context, lastSync time.Time) bool {
+func (s *Synchronizer) fetchRemoteUpdates(ctx context.Context, lastSync time.Time) error {
 	resp, err := s.client.GetUpdates(ctx, lastSync)
 	if err != nil {
 		if status.Code(err) == codes.Unauthenticated {
-			return false
+			return ErrUnauthenticated
 		}
 
-		logger.Logger.Warn("sync: can't get updates", zap.Error(err))
-		return false
+		return fmt.Errorf("sync: get remote updates: %w", err)
 	}
 
 	for _, item := range resp.Items {
@@ -145,9 +162,9 @@ func (s *Synchronizer) fetchRemoteUpdates(ctx context.Context, lastSync time.Tim
 		}
 
 		if err := s.userDataMgr.Upsert(ctx, data); err != nil {
-			logger.Logger.Fatal("sync: can't update local data", zap.Error(err))
+			return fmt.Errorf("sync: update local data: %w", err)
 		}
 	}
 
-	return true
+	return nil
 }

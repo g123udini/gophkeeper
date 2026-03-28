@@ -4,87 +4,147 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
+	"errors"
 	"io"
 	"testing"
+
+	"golang.org/x/crypto/argon2"
 )
 
-func encrypt(key, plaintext []byte) ([]byte, error) {
-	shaKey := sha256.Sum256(key)
-	key = shaKey[:]
+const testSaltSize = 16
+
+func encrypt(password, plaintext []byte) ([]byte, error) {
+	salt := make([]byte, testSaltSize)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, err
+	}
+
+	key := argon2.IDKey(password, salt, 1, 64*1024, 4, 32)
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
+
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
 	}
+
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
-	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
-	return ciphertext, nil
+
+	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+
+	result := make([]byte, 0, len(salt)+len(nonce)+len(ciphertext))
+	result = append(result, salt...)
+	result = append(result, nonce...)
+	result = append(result, ciphertext...)
+
+	return result, nil
 }
 
 func TestDecrypt_Success(t *testing.T) {
-	key := make([]byte, 32) // AES-256
-	if _, err := rand.Read(key); err != nil {
+	password := make([]byte, 32)
+	if _, err := rand.Read(password); err != nil {
 		t.Fatal(err)
 	}
+
 	plaintext := []byte("hello, world!")
-	ciphertext, err := encrypt(key, plaintext)
+
+	ciphertext, err := encrypt(password, plaintext)
 	if err != nil {
 		t.Fatalf("encryption failed: %v", err)
 	}
-	decrypted, err := Decrypt(key, ciphertext)
+
+	decrypted, err := Decrypt(password, ciphertext)
 	if err != nil {
 		t.Fatalf("decryption failed: %v", err)
 	}
+
 	if string(decrypted) != string(plaintext) {
 		t.Errorf("decrypted != original. got %q, want %q", decrypted, plaintext)
 	}
 }
 
 func TestDecrypt_WrongKey(t *testing.T) {
-	key := make([]byte, 32)
-	altKey := make([]byte, 32)
-	rand.Read(key)
-	rand.Read(altKey)
+	password := make([]byte, 32)
+	wrongPassword := make([]byte, 32)
+
+	if _, err := rand.Read(password); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rand.Read(wrongPassword); err != nil {
+		t.Fatal(err)
+	}
+
 	plaintext := []byte("test data")
-	ciphertext, err := encrypt(key, plaintext)
+
+	ciphertext, err := encrypt(password, plaintext)
 	if err != nil {
 		t.Fatalf("encryption failed: %v", err)
 	}
-	_, err = Decrypt(altKey, ciphertext)
+
+	_, err = Decrypt(wrongPassword, ciphertext)
 	if err == nil {
 		t.Fatal("expected decryption to fail with wrong key, got no error")
 	}
 }
 
 func TestDecrypt_CiphertextTooShort(t *testing.T) {
-	key := make([]byte, 32)
-	rand.Read(key)
+	password := make([]byte, 32)
+	if _, err := rand.Read(password); err != nil {
+		t.Fatal(err)
+	}
+
 	shortData := []byte("short")
-	_, err := Decrypt(key, shortData)
+
+	_, err := Decrypt(password, shortData)
 	if err == nil {
 		t.Fatal("expected ciphertext too short error")
 	}
-	if err.Error() != "ciphertext too short" {
-		t.Error("expected ciphertext too short error")
+
+	if !errors.Is(err, errors.New("ciphertext too short")) && err.Error() != "ciphertext too short" {
+		t.Errorf("expected ciphertext too short error, got %v", err)
 	}
 }
 
 func TestDecrypt_InvalidCiphertext(t *testing.T) {
-	key := make([]byte, 32)
-	rand.Read(key)
-	block, _ := aes.NewCipher(key)
-	gcm, _ := cipher.NewGCM(block)
+	password := make([]byte, 32)
+	if _, err := rand.Read(password); err != nil {
+		t.Fatal(err)
+	}
+
+	salt := make([]byte, testSaltSize)
+	if _, err := rand.Read(salt); err != nil {
+		t.Fatal(err)
+	}
+
+	key := argon2.IDKey(password, salt, 1, 64*1024, 4, 32)
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	nonce := make([]byte, gcm.NonceSize())
-	rand.Read(nonce)
-	invalidData := append(nonce, []byte("not a valid ciphertext")...)
-	_, err := Decrypt(key, invalidData)
+	if _, err := rand.Read(nonce); err != nil {
+		t.Fatal(err)
+	}
+
+	invalidData := make([]byte, 0, len(salt)+len(nonce)+len("not a valid ciphertext"))
+	invalidData = append(invalidData, salt...)
+	invalidData = append(invalidData, nonce...)
+	invalidData = append(invalidData, []byte("not a valid ciphertext")...)
+
+	_, err = Decrypt(password, invalidData)
 	if err == nil {
 		t.Error("expected decryption to fail with invalid ciphertext")
 	}

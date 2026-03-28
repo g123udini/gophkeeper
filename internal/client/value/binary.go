@@ -1,7 +1,9 @@
 package value
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 )
 
 type BinaryValue struct {
@@ -22,5 +24,12 @@ func (v *BinaryValue) Validate() error {
 }
 
 func (v *BinaryValue) String() string {
-	return string(v.Data)
+	const max = 16
+
+	data := v.Data
+	if len(data) > max {
+		data = data[:max]
+	}
+
+	return fmt.Sprintf("Binary[%d]: %s...", len(v.Data), base64.StdEncoding.EncodeToString(data))
 }

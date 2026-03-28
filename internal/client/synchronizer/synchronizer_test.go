@@ -45,9 +45,14 @@ type MockUserDataManager struct {
 
 func (m *MockUserDataManager) GetUpdates(ctx context.Context, lastSync time.Time) ([]*model.UserData, error) {
 	args := m.Called(ctx, lastSync)
-	return args.Get(0).([]*model.UserData), args.Error(1)
-}
 
+	var result []*model.UserData
+	if v := args.Get(0); v != nil {
+		result = v.([]*model.UserData)
+	}
+
+	return result, args.Error(1)
+}
 func (m *MockUserDataManager) Upsert(ctx context.Context, data *model.UserData) error {
 	args := m.Called(ctx, data)
 	return args.Error(0)
@@ -151,7 +156,8 @@ func TestSynchronizer_syncOnce(t *testing.T) {
 	s := New(client, userDataMgr, metaManager, interval)
 
 	ctx := context.Background()
-	s.syncOnce(ctx)
+	err := s.syncOnce(ctx)
+	assert.NoError(t, err)
 
 	metaManager.AssertCalled(t, "HasToken", ctx)
 	metaManager.AssertCalled(t, "GetLastSync", ctx)
@@ -173,7 +179,8 @@ func TestSynchronizer_syncOnce_NoToken(t *testing.T) {
 	s := New(client, userDataMgr, metaManager, interval)
 	ctx := context.Background()
 
-	s.syncOnce(ctx)
+	err := s.syncOnce(ctx)
+	assert.NoError(t, err)
 
 	metaManager.AssertCalled(t, "HasToken", ctx)
 	metaManager.AssertNotCalled(t, "GetLastSync", mock.Anything)
@@ -183,9 +190,9 @@ func TestSynchronizer_syncOnce_NoToken(t *testing.T) {
 
 func TestSynchronizer_pushLocalUpdates(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupMocks     func(*MockUserDataManager, *MockGRPCClient)
-		expectedResult bool
+		name        string
+		setupMocks  func(*MockUserDataManager, *MockGRPCClient)
+		expectedErr error
 	}{
 		{
 			name: "success_no_updates",
@@ -193,7 +200,7 @@ func TestSynchronizer_pushLocalUpdates(t *testing.T) {
 				userDataMgr.On("GetUpdates", mock.Anything, mock.AnythingOfType("time.Time")).
 					Return([]*model.UserData{}, nil)
 			},
-			expectedResult: true,
+			expectedErr: nil,
 		},
 		{
 			name: "success_with_updates",
@@ -204,11 +211,12 @@ func TestSynchronizer_pushLocalUpdates(t *testing.T) {
 				}
 				userDataMgr.On("GetUpdates", mock.Anything, mock.AnythingOfType("time.Time")).
 					Return(updates, nil)
+
 				for _, update := range updates {
 					client.On("Upsert", mock.Anything, update).Return(&proto.DataResponse{}, nil)
 				}
 			},
-			expectedResult: true,
+			expectedErr: nil,
 		},
 		{
 			name: "failure_upsert_error",
@@ -218,9 +226,10 @@ func TestSynchronizer_pushLocalUpdates(t *testing.T) {
 				}
 				userDataMgr.On("GetUpdates", mock.Anything, mock.AnythingOfType("time.Time")).
 					Return(updates, nil)
-				client.On("Upsert", mock.Anything, updates[0]).Return((*proto.DataResponse)(nil), errors.New("upsert error"))
+				client.On("Upsert", mock.Anything, updates[0]).
+					Return((*proto.DataResponse)(nil), errors.New("upsert error"))
 			},
-			expectedResult: false,
+			expectedErr: errors.New("upsert error"),
 		},
 	}
 
@@ -229,14 +238,19 @@ func TestSynchronizer_pushLocalUpdates(t *testing.T) {
 			client := &MockGRPCClient{}
 			userDataMgr := &MockUserDataManager{}
 			metaManager := &MockMetaManager{}
-			interval := 30 * time.Second
 
 			tt.setupMocks(userDataMgr, client)
 
-			s := New(client, userDataMgr, metaManager, interval)
-			result := s.pushLocalUpdates(context.Background(), time.Now())
+			s := New(client, userDataMgr, metaManager, 30*time.Second)
+			err := s.pushLocalUpdates(context.Background(), time.Now())
 
-			assert.Equal(t, tt.expectedResult, result)
+			if tt.expectedErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tt.expectedErr.Error())
+			}
+
 			userDataMgr.AssertExpectations(t)
 			client.AssertExpectations(t)
 		})
@@ -245,9 +259,9 @@ func TestSynchronizer_pushLocalUpdates(t *testing.T) {
 
 func TestSynchronizer_fetchRemoteUpdates(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupMocks     func(*MockGRPCClient, *MockUserDataManager)
-		expectedResult bool
+		name        string
+		setupMocks  func(*MockGRPCClient, *MockUserDataManager)
+		expectedErr error
 	}{
 		{
 			name: "success_no_updates",
@@ -255,7 +269,7 @@ func TestSynchronizer_fetchRemoteUpdates(t *testing.T) {
 				client.On("GetUpdates", mock.Anything, mock.AnythingOfType("time.Time")).
 					Return(&proto.DataListResponse{Items: []*proto.DataResponse{}}, nil)
 			},
-			expectedResult: true,
+			expectedErr: nil,
 		},
 		{
 			name: "success_with_updates",
@@ -276,11 +290,13 @@ func TestSynchronizer_fetchRemoteUpdates(t *testing.T) {
 				}
 				client.On("GetUpdates", mock.Anything, mock.AnythingOfType("time.Time")).
 					Return(&proto.DataListResponse{Items: updates}, nil)
+
 				for range updates {
-					userDataMgr.On("Upsert", mock.Anything, mock.AnythingOfType("*model.UserData")).Return(nil).Once()
+					userDataMgr.On("Upsert", mock.Anything, mock.AnythingOfType("*model.UserData")).
+						Return(nil).Once()
 				}
 			},
-			expectedResult: true,
+			expectedErr: nil,
 		},
 		{
 			name: "failure_get_updates_error",
@@ -288,7 +304,7 @@ func TestSynchronizer_fetchRemoteUpdates(t *testing.T) {
 				client.On("GetUpdates", mock.Anything, mock.AnythingOfType("time.Time")).
 					Return((*proto.DataListResponse)(nil), errors.New("get updates error"))
 			},
-			expectedResult: false,
+			expectedErr: errors.New("get updates error"),
 		},
 	}
 
@@ -297,14 +313,19 @@ func TestSynchronizer_fetchRemoteUpdates(t *testing.T) {
 			client := &MockGRPCClient{}
 			userDataMgr := &MockUserDataManager{}
 			metaManager := &MockMetaManager{}
-			interval := 30 * time.Second
 
 			tt.setupMocks(client, userDataMgr)
 
-			s := New(client, userDataMgr, metaManager, interval)
-			result := s.fetchRemoteUpdates(context.Background(), time.Now())
+			s := New(client, userDataMgr, metaManager, 30*time.Second)
+			err := s.fetchRemoteUpdates(context.Background(), time.Now())
 
-			assert.Equal(t, tt.expectedResult, result)
+			if tt.expectedErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tt.expectedErr.Error())
+			}
+
 			client.AssertExpectations(t)
 			userDataMgr.AssertExpectations(t)
 		})

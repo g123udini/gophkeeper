@@ -1,7 +1,6 @@
 package value
 
 import (
-	"encoding/base64"
 	"os"
 	"testing"
 )
@@ -19,7 +18,7 @@ func TestFromBytes(t *testing.T) {
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err == nil {
-					t.Errorf("Expected error for empty data, got nil")
+					t.Errorf("expected error for empty data, got nil")
 				}
 			},
 		},
@@ -30,7 +29,7 @@ func TestFromBytes(t *testing.T) {
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err == nil {
-					t.Errorf("Expected error for invalid type, got nil")
+					t.Errorf("expected error for invalid type, got nil")
 				}
 			},
 		},
@@ -41,21 +40,26 @@ func TestFromBytes(t *testing.T) {
 					Login:    "testuser",
 					Password: "testpass",
 				}
-				data, _ := lp.ToBytes()
+				data, err := lp.ToBytes()
+				if err != nil {
+					t.Fatalf("ToBytes() failed: %v", err)
+				}
 				return data
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
+					t.Errorf("unexpected error: %v", err)
 					return
 				}
+
 				lp, ok := v.(*LoginPassword)
 				if !ok {
-					t.Errorf("Expected LoginPassword, got %T", v)
+					t.Errorf("expected *LoginPassword, got %T", v)
 					return
 				}
+
 				if lp.Login != "testuser" || lp.Password != "testpass" {
-					t.Errorf("Wrong data: %+v", lp)
+					t.Errorf("wrong data: %+v", lp)
 				}
 			},
 		},
@@ -65,43 +69,55 @@ func TestFromBytes(t *testing.T) {
 				tv := TextValue{
 					Text: "test text",
 				}
-				data, _ := tv.ToBytes()
+				data, err := tv.ToBytes()
+				if err != nil {
+					t.Fatalf("ToBytes() failed: %v", err)
+				}
 				return data
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
+					t.Errorf("unexpected error: %v", err)
 					return
 				}
+
 				tv, ok := v.(*TextValue)
 				if !ok {
-					t.Errorf("Expected TextValue, got %T", v)
+					t.Errorf("expected *TextValue, got %T", v)
 					return
 				}
+
 				if tv.Text != "test text" {
-					t.Errorf("Wrong data: %+v", tv)
+					t.Errorf("wrong data: %+v", tv)
 				}
 			},
 		},
 		{
 			name: "valid binary",
 			setup: func() []byte {
-				binData := []byte("test binary data")
-				encoded := base64.StdEncoding.EncodeToString(binData)
-				return append([]byte{byte(typeBinary)}, encoded...)
+				bv := BinaryValue{
+					Data: []byte("test binary data"),
+				}
+				data, err := bv.ToBytes()
+				if err != nil {
+					t.Fatalf("ToBytes() failed: %v", err)
+				}
+				return data
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
+					t.Errorf("unexpected error: %v", err)
 					return
 				}
+
 				bv, ok := v.(*BinaryValue)
 				if !ok {
-					t.Errorf("Expected BinaryValue, got %T", v)
+					t.Errorf("expected *BinaryValue, got %T", v)
 					return
 				}
+
 				if string(bv.Data) != "test binary data" {
-					t.Errorf("Wrong data: %s", string(bv.Data))
+					t.Errorf("wrong data: %s", string(bv.Data))
 				}
 			},
 		},
@@ -115,22 +131,30 @@ func TestFromBytes(t *testing.T) {
 					ExpireYear:  2030,
 					CVC:         "123",
 				}
-				data, _ := cv.ToBytes()
+				data, err := cv.ToBytes()
+				if err != nil {
+					t.Fatalf("ToBytes() failed: %v", err)
+				}
 				return data
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
+					t.Errorf("unexpected error: %v", err)
 					return
 				}
+
 				cv, ok := v.(*CardValue)
 				if !ok {
-					t.Errorf("Expected CardValue, got %T", v)
+					t.Errorf("expected *CardValue, got %T", v)
 					return
 				}
-				if cv.Number != "4111111111111111" || cv.Holder != "Test User" ||
-					cv.ExpireMonth != 12 || cv.ExpireYear != 2030 || cv.CVC != "123" {
-					t.Errorf("Wrong data: %+v", cv)
+
+				if cv.Number != "4111111111111111" ||
+					cv.Holder != "Test User" ||
+					cv.ExpireMonth != 12 ||
+					cv.ExpireYear != 2030 ||
+					cv.CVC != "123" {
+					t.Errorf("wrong data: %+v", cv)
 				}
 			},
 		},
@@ -141,7 +165,7 @@ func TestFromBytes(t *testing.T) {
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err == nil {
-					t.Errorf("Expected error for invalid json, got nil")
+					t.Errorf("expected error for invalid json, got nil")
 				}
 			},
 		},
@@ -152,18 +176,30 @@ func TestFromBytes(t *testing.T) {
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err == nil {
-					t.Errorf("Expected error for invalid json, got nil")
+					t.Errorf("expected error for invalid json, got nil")
 				}
 			},
 		},
 		{
-			name: "invalid binary data",
+			name: "binary raw bytes are valid",
 			setup: func() []byte {
-				return append([]byte{byte(typeBinary)}, []byte("invalid base64")...)
+				return append([]byte{byte(typeBinary)}, []byte{0x00, 0x01, 0x02, 0xff}...)
 			},
 			validate: func(t *testing.T, v Value, err error) {
-				if err == nil {
-					t.Errorf("Expected error for invalid base64, got nil")
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+
+				bv, ok := v.(*BinaryValue)
+				if !ok {
+					t.Errorf("expected *BinaryValue, got %T", v)
+					return
+				}
+
+				expected := []byte{0x00, 0x01, 0x02, 0xff}
+				if string(bv.Data) != string(expected) {
+					t.Errorf("wrong binary data: got %v, want %v", bv.Data, expected)
 				}
 			},
 		},
@@ -174,7 +210,7 @@ func TestFromBytes(t *testing.T) {
 			},
 			validate: func(t *testing.T, v Value, err error) {
 				if err == nil {
-					t.Errorf("Expected error for invalid json, got nil")
+					t.Errorf("expected error for invalid json, got nil")
 				}
 			},
 		},
@@ -190,7 +226,6 @@ func TestFromBytes(t *testing.T) {
 }
 
 func TestFromUserInput(t *testing.T) {
-	// Create a temporary file for binary tests
 	binaryFile, err := os.CreateTemp("", "binary_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)

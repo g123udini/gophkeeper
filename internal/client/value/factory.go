@@ -1,7 +1,6 @@
 package value
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +16,7 @@ func FromBytes(data []byte) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	payload := data[1:]
 
 	switch typ {
@@ -26,25 +26,24 @@ func FromBytes(data []byte) (Value, error) {
 			return nil, fmt.Errorf("invalid login/password: %w", err)
 		}
 		return &v, nil
+
 	case typeText:
 		var v TextValue
 		if err := json.Unmarshal(payload, &v); err != nil {
 			return nil, fmt.Errorf("invalid text: %w", err)
 		}
 		return &v, nil
-	case typeBinary:
-		data, err := base64.StdEncoding.DecodeString(string(payload))
-		if err != nil {
-			return nil, fmt.Errorf("invalid binary: %w", err)
-		}
 
-		return &BinaryValue{Data: data}, nil
+	case typeBinary:
+		return &BinaryValue{Data: append([]byte(nil), payload...)}, nil
+
 	case typeCard:
 		var v CardValue
 		if err := json.Unmarshal(payload, &v); err != nil {
 			return nil, fmt.Errorf("invalid card: %w", err)
 		}
 		return &v, nil
+
 	default:
 		return nil, errors.New("unknown value type")
 	}

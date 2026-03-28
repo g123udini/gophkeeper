@@ -5,68 +5,97 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
+	"errors"
 	"testing"
+
+	"golang.org/x/crypto/argon2"
 )
 
-func decrypt(key, ciphertext []byte) ([]byte, error) {
-	shaKey := sha256.Sum256(key)
-	key = shaKey[:]
+func decrypt(password, encrypted []byte) ([]byte, error) {
+	if len(encrypted) < testSaltSize {
+		return nil, errors.New("ciphertext too short")
+	}
+
+	salt := encrypted[:testSaltSize]
+	key := argon2.IDKey(password, salt, 1, 64*1024, 4, 32)
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
+
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
 	}
+
 	nonceSize := gcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return nil, err
+	if len(encrypted) < testSaltSize+nonceSize {
+		return nil, errors.New("ciphertext too short")
 	}
-	nonce, ct := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	return gcm.Open(nil, nonce, ct, nil)
+
+	nonce := encrypted[testSaltSize : testSaltSize+nonceSize]
+	ciphertext := encrypted[testSaltSize+nonceSize:]
+
+	return gcm.Open(nil, nonce, ciphertext, nil)
 }
 
 func TestEncrypt_Success(t *testing.T) {
-	key := make([]byte, 32)
-	_, err := rand.Read(key)
+	password := make([]byte, 32)
+	_, err := rand.Read(password)
 	if err != nil {
-		t.Fatalf("failed to generate key: %v", err)
+		t.Fatalf("failed to generate password: %v", err)
 	}
+
 	data := []byte("test message")
-	ciphertext, err := Encrypt(key, data)
+
+	encrypted, err := Encrypt(password, data)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if bytes.Equal(data, ciphertext) {
-		t.Errorf("ciphertext should not be equal to plaintext")
-	}
-	if len(ciphertext) <= len(data) {
-		t.Errorf("ciphertext length is not greater than plaintext")
+
+	if bytes.Equal(data, encrypted) {
+		t.Errorf("encrypted data should not be equal to plaintext")
 	}
 
-	plaintext, err := decrypt(key, ciphertext)
+	if len(encrypted) <= len(data) {
+		t.Errorf("encrypted data length should be greater than plaintext length")
+	}
+
+	plaintext, err := decrypt(password, encrypted)
 	if err != nil {
 		t.Fatalf("decryption failed: %v", err)
 	}
+
 	if !bytes.Equal(data, plaintext) {
 		t.Errorf("decrypted plaintext does not match original, got %s, want %s", plaintext, data)
 	}
 }
 
 func TestEncrypt_NilData(t *testing.T) {
-	key := make([]byte, 32)
-	_, err := rand.Read(key)
+	password := make([]byte, 32)
+	_, err := rand.Read(password)
 	if err != nil {
-		t.Fatalf("failed to generate key: %v", err)
+		t.Fatalf("failed to generate password: %v", err)
 	}
+
 	var data []byte
-	ciphertext, err := Encrypt(key, data)
+
+	encrypted, err := Encrypt(password, data)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(ciphertext) == 0 {
-		t.Errorf("ciphertext should not be empty")
+
+	if len(encrypted) == 0 {
+		t.Errorf("encrypted data should not be empty")
+	}
+
+	plaintext, err := decrypt(password, encrypted)
+	if err != nil {
+		t.Fatalf("decryption failed: %v", err)
+	}
+
+	if len(plaintext) != 0 {
+		t.Errorf("decrypted plaintext should be empty, got %q", plaintext)
 	}
 }

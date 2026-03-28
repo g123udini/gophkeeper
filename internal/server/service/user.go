@@ -5,14 +5,13 @@ import (
 
 	"github.com/g123udini/gophkeeper/internal/server/jwt"
 	"github.com/g123udini/gophkeeper/internal/server/model"
-	"github.com/g123udini/gophkeeper/internal/server/repository"
-
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
-	ErrUserExists         = errors.New("user already exists")
-	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUserExists              = errors.New("user already exists")
+	ErrInvalidCredentials      = errors.New("invalid credentials")
+	ErrUserNotFoundAfterCreate = errors.New("user was created but not found")
 )
 
 type UserRepository interface {
@@ -20,23 +19,28 @@ type UserRepository interface {
 	CreateUser(login, passwordHash, masterPasswordHash string) error
 }
 
+type TokenService interface {
+	Encode(userID uint32, login string) (string, error)
+	Decode(token string) (*jwt.Claims, error)
+}
+
 type UserService struct {
 	userRepo UserRepository
-	jwt      *jwt.Container
+	jwt      TokenService
 }
 
 func NewUserManager(
-	userRepo *repository.UserRepository,
-	jwt *jwt.Container,
+	userRepo UserRepository,
+	tokenMgr TokenService,
 ) *UserService {
 	return &UserService{
 		userRepo: userRepo,
-		jwt:      jwt,
+		jwt:      tokenMgr,
 	}
 }
 
-func (m *UserService) Register(login, password, masterPassword string) (string, error) {
-	existing, err := m.userRepo.GetUserByLogin(login)
+func (s *UserService) Register(login, password, masterPassword string) (string, error) {
+	existing, err := s.userRepo.GetUserByLogin(login)
 	if err != nil {
 		return "", err
 	}
@@ -54,21 +58,24 @@ func (m *UserService) Register(login, password, masterPassword string) (string, 
 		return "", err
 	}
 
-	err = m.userRepo.CreateUser(login, string(passwordHash), string(masterPasswordHash))
+	err = s.userRepo.CreateUser(login, string(passwordHash), string(masterPasswordHash))
 	if err != nil {
 		return "", err
 	}
 
-	user, err := m.userRepo.GetUserByLogin(login)
-	if err != nil || user == nil {
+	user, err := s.userRepo.GetUserByLogin(login)
+	if err != nil {
 		return "", err
 	}
+	if user == nil {
+		return "", ErrUserNotFoundAfterCreate
+	}
 
-	return m.jwt.Encode(user.ID, login)
+	return s.jwt.Encode(user.ID, login)
 }
 
-func (m *UserService) Login(login, password, masterPassword string) (string, error) {
-	user, err := m.userRepo.GetUserByLogin(login)
+func (s *UserService) Login(login, password, masterPassword string) (string, error) {
+	user, err := s.userRepo.GetUserByLogin(login)
 	if err != nil {
 		return "", err
 	}
@@ -76,23 +83,23 @@ func (m *UserService) Login(login, password, masterPassword string) (string, err
 		return "", ErrInvalidCredentials
 	}
 
-	if err := bcrypt.CompareHashAndPassword(
+	if err = bcrypt.CompareHashAndPassword(
 		[]byte(user.PasswordHash),
 		[]byte(password),
 	); err != nil {
 		return "", ErrInvalidCredentials
 	}
 
-	if err := bcrypt.CompareHashAndPassword(
+	if err = bcrypt.CompareHashAndPassword(
 		[]byte(user.MasterPasswordHash),
 		[]byte(masterPassword),
 	); err != nil {
 		return "", ErrInvalidCredentials
 	}
 
-	return m.jwt.Encode(user.ID, login)
+	return s.jwt.Encode(user.ID, login)
 }
 
-func (m *UserService) DecodeToken(token string) (*jwt.Claims, error) {
-	return m.jwt.Decode(token)
+func (s *UserService) DecodeToken(token string) (*jwt.Claims, error) {
+	return s.jwt.Decode(token)
 }

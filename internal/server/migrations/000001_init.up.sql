@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS user_data (
                                          user_id INT NOT NULL,
                                          data_key VARCHAR(255) NOT NULL,
     data_value LONGBLOB NOT NULL,
-    version INT NOT NULL DEFAULT 1,
     srv_updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL,
     deleted_at DATETIME NULL,

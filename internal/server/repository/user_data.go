@@ -56,7 +56,7 @@ func (r *UserDataRepository) Upsert(ctx context.Context, data *model.UserData) e
 			return nil
 		}
 
-		_, err := tx.ExecContext(ctx, `
+		_, err = tx.ExecContext(ctx, `
 		UPDATE user_data 
 		SET 
 			data_value = ?,

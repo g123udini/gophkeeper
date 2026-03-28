@@ -176,7 +176,9 @@ func TestCardValue_String(t *testing.T) {
 		ExpireYear:  2030,
 		CVC:         "123",
 	}
-	expected := "Card: 4111111111111111, Test User, 12/2030, 123"
+
+	expected := "Card: **** **** **** 1111, Test User, 12/2030"
+
 	if v.String() != expected {
 		t.Errorf("String() = %v, want %v", v.String(), expected)
 	}

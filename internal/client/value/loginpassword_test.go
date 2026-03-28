@@ -86,7 +86,9 @@ func TestLoginPassword_String(t *testing.T) {
 		Login:    "testuser",
 		Password: "testpass",
 	}
-	expected := "Login: testuser, Password: testpass"
+
+	expected := "Login: testuser, Password: ******"
+
 	if v.String() != expected {
 		t.Errorf("String() = %v, want %v", v.String(), expected)
 	}

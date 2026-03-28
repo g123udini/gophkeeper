@@ -128,7 +128,10 @@ func TestGetBoolEnv(t *testing.T) {
 	}
 }
 
-// На случай старой версии Go без t.Setenv в вашем окружении тестов
+func getBoolEnv(key string) bool {
+	return os.Getenv(key) == "true" || os.Getenv(key) == "1"
+}
+
 func TestLoad_UsesRealEnvAPI(t *testing.T) {
 	old := os.Getenv("APP_SECRET")
 	defer func() { _ = os.Setenv("APP_SECRET", old) }()

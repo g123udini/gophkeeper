@@ -2,12 +2,13 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
+	"google.golang.org/grpc/credentials"
 	"time"
 
 	"github.com/g123udini/gophkeeper/internal/client/model"
 	"github.com/g123udini/gophkeeper/internal/common/proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -20,9 +21,13 @@ type Client struct {
 }
 
 func NewClient(serverAddr string) (*Client, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
 	conn, err := grpc.NewClient(
 		serverAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
 	if err != nil {
 		return nil, err

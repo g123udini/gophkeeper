@@ -44,5 +44,19 @@ func (v *CardValue) Validate() error {
 }
 
 func (v *CardValue) String() string {
-	return fmt.Sprintf("Card: %s, %s, %d/%d, %s", v.Number, v.Holder, v.ExpireMonth, v.ExpireYear, v.CVC)
+	return fmt.Sprintf(
+		"Card: %s, %s, %02d/%d",
+		maskCardNumber(v.Number),
+		v.Holder,
+		v.ExpireMonth,
+		v.ExpireYear,
+	)
+}
+
+func maskCardNumber(number string) string {
+	if len(number) <= 4 {
+		return "****"
+	}
+
+	return "**** **** **** " + number[len(number)-4:]
 }

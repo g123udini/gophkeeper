@@ -4,25 +4,37 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
+	"golang.org/x/crypto/argon2"
 	"io"
 )
 
-func Encrypt(key, data []byte) ([]byte, error) {
-	shaKey := sha256.Sum256(key)
-	key = shaKey[:]
+func Encrypt(password, data []byte) ([]byte, error) {
+	salt := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, err
+	}
+
+	key := argon2.IDKey(password, salt, 1, 64*1024, 4, 32)
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
+
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
 	}
+
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
-	ciphertext := gcm.Seal(nonce, nonce, data, nil)
-	return ciphertext, nil
+
+	ciphertext := gcm.Seal(nil, nonce, data, nil)
+	result := make([]byte, 0, len(salt)+len(nonce)+len(ciphertext))
+	result = append(result, salt...)
+	result = append(result, nonce...)
+	result = append(result, ciphertext...)
+	return result, nil
 }

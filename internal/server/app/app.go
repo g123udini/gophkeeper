@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"net"
 	"os/signal"
 	"syscall"
@@ -36,9 +38,17 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	logger.Init("server", "info")
+	var level string
+	if cfg.Debug {
+		level = "debug"
+	} else {
+		level = "info"
+	}
+
+	logger.Init("server", level)
 
 	db, err := initDB(cfg)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to init db: %w", err)
 	}
@@ -102,6 +112,10 @@ func initDB(cfg *config.Config) (*sql.DB, error) {
 	db.SetMaxIdleConns(25)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
+	if err := initMigrations(db, "file://migrations"); err != nil {
+		return nil, fmt.Errorf("failed to init migrations: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -110,6 +124,31 @@ func initDB(cfg *config.Config) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func initMigrations(db *sql.DB, migrationsPath string) error {
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("create migrate driver: %w", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		migrationsPath,
+		"postgres",
+		driver,
+	)
+	if err != nil {
+		return fmt.Errorf("create migrate instance: %w", err)
+	}
+
+	if err := m.Up(); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			return nil
+		}
+		return fmt.Errorf("run migrations: %w", err)
+	}
+
+	return nil
 }
 
 type services struct {

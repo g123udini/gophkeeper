@@ -82,7 +82,36 @@ func TestBinaryValue_Validate(t *testing.T) {
 func TestBinaryValue_String(t *testing.T) {
 	testData := []byte("test data")
 	v := &BinaryValue{Data: testData}
-	if v.String() != string(testData) {
-		t.Errorf("String() = %v, want %v", v.String(), string(testData))
+
+	result := v.String()
+	expected := "Binary[9]: dGVzdCBkYXRh..."
+
+	if result != expected {
+		t.Errorf("String() = %v, want %v", result, expected)
+	}
+}
+
+func TestBinaryValue_ToBytes_FromBytes(t *testing.T) {
+	original := &BinaryValue{
+		Data: []byte{0x00, 0x01, 0x02, 0xFF, 0x10},
+	}
+
+	raw, err := original.ToBytes()
+	if err != nil {
+		t.Fatalf("ToBytes() error = %v", err)
+	}
+
+	got, err := FromBytes(raw)
+	if err != nil {
+		t.Fatalf("FromBytes() error = %v", err)
+	}
+
+	bin, ok := got.(*BinaryValue)
+	if !ok {
+		t.Fatalf("expected *BinaryValue, got %T", got)
+	}
+
+	if !bytes.Equal(bin.Data, original.Data) {
+		t.Errorf("binary data mismatch: got %v, want %v", bin.Data, original.Data)
 	}
 }

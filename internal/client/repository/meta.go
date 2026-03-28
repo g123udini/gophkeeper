@@ -24,8 +24,12 @@ func NewMetaRepository(db *sql.DB) (*MetaRepository, error) {
 
 func (r *MetaRepository) GetToken(ctx context.Context) (string, error) {
 	var token string
+
 	err := r.db.QueryRowContext(ctx, "SELECT token FROM meta WHERE id = 0").Scan(&token)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
 		return "", err
 	}
 
