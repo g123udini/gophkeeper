@@ -16,8 +16,5 @@ logs: ## Show logs
 logsf: ## Follow logs
 	docker compose logs -f
 
-migrate: ## Execute migrations
-	docker compose run --rm goose
-
 in-client:
 	docker compose exec client cmd/client/client --addr=server:50051 user.db p4ssw0rd
