@@ -69,6 +69,7 @@ func (a *App) Run() error {
 			grpcs.NewAuthInterceptor(a.services.userManager).Unary(),
 		),
 	)
+
 	grpcInternal := grpcs.NewServer(a.services.userManager, a.services.dataManager)
 	proto.RegisterAuthServiceServer(grpcServer, grpcInternal)
 	proto.RegisterDataServiceServer(grpcServer, grpcInternal)
@@ -83,7 +84,6 @@ func (a *App) Run() error {
 		if err := grpcServer.Serve(listener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			logger.Logger.Error("gRPC server failed", zap.Error(err))
 		}
-
 		stop()
 	}()
 
@@ -92,7 +92,19 @@ func (a *App) Run() error {
 
 	logger.Logger.Info("Shutting down server...")
 
-	grpcServer.GracefulStop()
+	stopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(a.cfg.WriteTimeout):
+		logger.Logger.Warn("graceful stop timeout exceeded, forcing stop")
+		grpcServer.Stop()
+	}
+
 	if err := a.db.Close(); err != nil {
 		logger.Logger.Error("Failed to close db connection", zap.Error(err))
 	}
@@ -116,7 +128,7 @@ func initDB(cfg *config.Config) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to init migrations: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ReadTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
